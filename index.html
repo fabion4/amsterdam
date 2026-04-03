@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Amsterdam 2026 - Itinerario</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.min.js"></script>
+
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #eee; }
+        #wrap { display: flex; height: 100vh; flex-direction: column; }
+        #tabs { display: flex; background: #333; overflow-x: auto; }
+        .tab { color: white; padding: 15px; cursor: pointer; border-bottom: 4px solid transparent; min-width: 100px; text-align: center; font-size: 14px; }
+        .tab.active { border-bottom-color: #ff5722; background: #444; }
+        #main { display: flex; flex: 1; overflow: hidden; }
+        #map { flex: 1; background: #ccc; }
+        #sidebar { width: 320px; background: white; border-left: 1px solid #ccc; overflow-y: auto; padding: 15px; }
+        .stop { border-left: 3px solid #ff5722; margin-bottom: 15px; padding-left: 10px; cursor: pointer; }
+        .stop:hover { background: #f9f9f9; }
+        h1 { font-size: 18px; margin: 0 0 10px 0; }
+        @media (max-width: 768px) { #main { flex-direction: column; } #sidebar { width: 100%; height: 300px; } }
+    </style>
+</head>
+<body>
+
+<div id="wrap">
+    <div id="tabs" id="tabContainer"></div>
+    <div id="main">
+        <div id="map"></div>
+        <div id="sidebar">
+            <h1 id="dayTitle">Seleziona un giorno</h1>
+            <div id="stopList"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Dati completi ripristinati dal tuo originale
+const itinerario = [
+    {id:'lun', d:'Lun 6', t:'Jordaan', c:'#1D9E75', stops:[{n:'Hotel', la:52.3787, ln:4.8577, tm:'13:00', dc:'Sistemazione bagagli.'},{n:'Westerkerk', la:52.3745, ln:4.8843, tm:'14:00', dc:'Torre di 85m.'},{n:'Jordaan', la:52.379, ln:4.884, tm:'14:45', dc:'Caffè storici.'}]},
+    {id:'mar', d:'Mar 7', t:'Centro Storico', c:'#D85A30', stops:[{n:'Centraal', la:52.3791, ln:4.8993, tm:'09:00', dc:'Stazione Centrale.'},{n:'Piazza Dam', la:52.3731, ln:4.8926, tm:'09:30', dc:'Palazzo Reale.'},{n:'Red Light', la:52.3741, ln:4.8965, tm:'17:00', dc:'Atmosfera unica.'}]},
+    {id:'mer', d:'Mer 8', t:'Utrecht', c:'#7F77DD', stops:[{n:'Utrecht Centraal', la:52.0894, ln:5.1099, tm:'09:00', dc:'Treno 27 min.'},{n:'Dom Tower', la:52.0907, ln:5.1213, tm:'09:30', dc:'Vista panoramica.'}]},
+    {id:'gio', d:'Gio 9', t:'Musei', c:'#BA7517', stops:[{n:'Van Gogh', la:52.3584, ln:4.8812, tm:'09:00', dc:'Prenotare ora!'},{n:'Rijksmuseum', la:52.36, ln:4.885, tm:'11:30', dc:'Rembrandt.'}]},
+    {id:'ven', d:'Ven 10', t:'Noord', c:'#378ADD', stops:[{n:'Traghetto', la:52.3832, ln:4.9013, tm:'09:30', dc:'Gratis dietro Centraal.'},{n:'A\'DAM Lookout', la:52.3843, ln:4.9018, tm:'10:30', dc:'Vista 360°.'}]}
+];
+
+let map, markers = [], polyline;
+
+function init() {
+    // Controllo se Leaflet è caricato
+    if (typeof L === 'undefined') {
+        document.body.innerHTML = "<h2 style='padding:20px'>Errore: Connessione internet assente o caricamento mappa fallito. Ricarica la pagina.</h2>";
+        return;
+    }
+
+    map = L.map('map').setView([52.37, 4.89], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+    const tabContainer = document.getElementById('tabs');
+    itinerario.forEach(giorno => {
+        const t = document.createElement('div');
+        t.className = 'tab';
+        t.innerHTML = `<strong>${giorno.d}</strong><br>${giorno.t}`;
+        t.onclick = () => caricaGiorno(giorno, t);
+        tabContainer.appendChild(t);
+        if(giorno.id === 'lun') caricaGiorno(giorno, t); // Carica Lunedì all'avvio
+    });
+}
+
+function caricaGiorno(g, tabElement) {
+    // Gestione Grafica Tab
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tabElement.classList.add('active');
+
+    // Reset Mappa
+    markers.forEach(m => map.removeLayer(m));
+    if(polyline) map.removeLayer(polyline);
+    markers = [];
+
+    // Aggiorna Sidebar
+    document.getElementById('dayTitle').innerText = g.d + ": " + g.t;
+    const list = document.getElementById('stopList');
+    list.innerHTML = "";
+
+    const coords = [];
+    g.stops.forEach(s => {
+        const m = L.marker([s.la, s.ln]).addTo(map).bindPopup(`<b>${s.n}</b><br>${s.tm}`);
+        markers.push(m);
+        coords.push([s.la, s.ln]);
+
+        const item = document.createElement('div');
+        item.className = 'stop';
+        item.style.borderColor = g.c;
+        item.innerHTML = `<strong>${s.tm} - ${s.n}</strong><br><small>${s.dc}</small>`;
+        item.onclick = () => { map.setView([s.la, s.ln], 16); m.openPopup(); };
+        list.appendChild(item);
+    });
+
+    if(coords.length > 1) {
+        polyline = L.polyline(coords, {color: g.c, weight: 3}).addTo(map);
+        map.fitBounds(polyline.getBounds(), {padding: [50, 50]});
+    }
+}
+
+// Avvio forzato
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
+</script>
+</body>
+</html>
